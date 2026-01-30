@@ -19,8 +19,21 @@ main.py
  ~ MainWindow           → GUI + controls
  
  ~ format_hexdump()     → hex formatter
+ 
 
 INSTALLATION
 
-git clone https://github.com/mivulenelson/codeAlpha-Cyber-Intern-Tasks/basic
 
+git clone https://github.com/mivulenelson/codeAlpha-Cyber-Intern-Tasks/tree/main/basic_network_sniffer
+
+
+INSTALL A VIRTUAL ENVIRONMENT
+
+
+python3 -m venv env
+
+source env/bin/activate
+
+INSTALL DEPENDENCIES
+
+pip install -r requirements.txt
