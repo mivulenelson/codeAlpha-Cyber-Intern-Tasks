@@ -110,17 +110,20 @@ Architecture (Single-File Modular Design)
 The project is implemented in a clean, modular structure within a single script:
 
 main.py
- ├── SnifferEngine        → threaded scapy capture
+
+ ~ SnifferEngine        → threaded scapy capture
  
- ├── parse_packet()       → protocol detection logic
+ ~ parse_packet()       → protocol detection logic
  
- ├── PacketDetailDialog   → OSI + hex inspector
+ ~ PacketDetailDialog   → OSI + hex inspector
  
- ├── MainWindow           → GUI + controls
+ ~ MainWindow           → GUI + controls
  
- └── format_hexdump()     → hex formatter
+ ~ format_hexdump()     → hex formatter
 
 INSTALLATION
+
 git clone https://github.com/mivulenelson/.git
 https://github.com/mivulenelson/codeAlpha-Cyber-Intern-Tasks/basic
+
 cd 
