@@ -106,27 +106,40 @@ Hex bytes
 ASCII representation
 
 main.py
+
  ~ SnifferEngine        → threaded scapy capture
+ 
  ~ parse_packet()       → protocol detection logic
+ 
  ~ PacketDetailDialog   → OSI + hex inspector
+ 
  ~ MainWindow           → GUI + controls
+ 
  ~ format_hexdump()     → hex formatter
 
 INSTALLATION
+
 git clone https://github.com/mivulenelson/codeAlpha-Cyber-Intern-Tasks/tree/main/basic_network_sniffer
 
 INSTALL A VIRTUAL ENVIRONMENT
+
 python3 -m venv env
+
 source env/bin/activate
 
 
 INSTALL DEPENDENCIES
+
 pip install -r requirements.txt
 
 
 Author
+
 NELSON MIVULE
+
 CodeAlpha Cybersecurity Internship 
+
 January to April
+
 Project 1: Basic Network Sniffer (PySide6 + Scapy)
 
