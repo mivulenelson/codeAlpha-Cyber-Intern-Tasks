@@ -111,9 +111,13 @@ The project is implemented in a clean, modular structure within a single script:
 
 main.py
  ├── SnifferEngine        → threaded scapy capture
+ 
  ├── parse_packet()       → protocol detection logic
+ 
  ├── PacketDetailDialog   → OSI + hex inspector
+ 
  ├── MainWindow           → GUI + controls
+ 
  └── format_hexdump()     → hex formatter
 
 INSTALLATION
