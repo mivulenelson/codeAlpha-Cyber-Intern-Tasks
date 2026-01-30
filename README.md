@@ -123,7 +123,5 @@ main.py
 
 INSTALLATION
 
-git clone https://github.com/mivulenelson/.git
-https://github.com/mivulenelson/codeAlpha-Cyber-Intern-Tasks/basic
+git clone https://github.com/mivulenelson/codeAlpha-Cyber-Intern-Tasks/basic
 
-cd 
