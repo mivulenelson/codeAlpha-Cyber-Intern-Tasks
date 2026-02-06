@@ -1,3 +1,8 @@
+"""
+#####################################################################################################################
+Scapy Imports for packet capturing and cracfting
+"""
+
 import sys
 from datetime import datetime
 
@@ -6,15 +11,6 @@ from scapy.all import sniff
 from scapy.layers.inet import IP, TCP, UDP, ICMP
 from scapy.layers.l2 import Ether, ARP
 from scapy.layers.dns import DNS
-
-# PySide6 imports
-from PySide6.QtCore import QObject, Signal
-from PySide6.QtGui import QAction, QFont
-from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QTableWidgetItem, QToolBar, 
-    QStatusBar, QTableWidget, QAbstractItemView, QHeaderView, QDialog, QTabWidget,
-    QTreeWidget, QTreeWidgetItem, QPlainTextEdit, QMessageBox
-)
 
 
 try:
@@ -197,8 +193,21 @@ def format_hexdump(data: bytes, width: int = 16) -> str:
     return "\n".join(lines)
 
 
+"""
+-------------------------------------------------------------------------------------------------------------------------
+Main GUI for all sniffed packets Using PySide6
+"""
 
-# Main GUI for all sniffed packets
+# PySide6 imports
+from PySide6.QtCore import QObject, Signal
+from PySide6.QtGui import QAction, QFont
+from PySide6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QTableWidgetItem, QToolBar, 
+    QStatusBar, QTableWidget, QAbstractItemView, QHeaderView, QDialog, QTabWidget,
+    QTreeWidget, QTreeWidgetItem, QPlainTextEdit, QMessageBox
+)
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
