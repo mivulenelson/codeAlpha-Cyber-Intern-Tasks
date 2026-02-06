@@ -1,34 +1,20 @@
-from email import header
 import sys
-import binascii
 from datetime import datetime
 
-from PySide6.QtCore import QObject, Signal
-from PySide6.QtGui import QAction, QFont
-from PySide6.QtWidgets import (
-    QApplication,
-    QMainWindow,
-    QWidget,
-    QVBoxLayout,
-    QTableWidgetItem,
-    QToolBar, 
-    QStatusBar,
-    QTableWidget,
-    QAbstractItemView,
-    QHeaderView,
-    QDialog,
-    QTabWidget,
-    QTreeWidget,
-    QTreeWidgetItem,
-    QPlainTextEdit, 
-    QMessageBox
-)
-
+# Scapy imports
 from scapy.all import sniff
 from scapy.layers.inet import IP, TCP, UDP, ICMP
 from scapy.layers.l2 import Ether, ARP
-from scapy.layers.dns import DNS, DNSQR
-from scapy.layers.dhcp import DHCP
+from scapy.layers.dns import DNS
+
+# PySide6 imports
+from PySide6.QtCore import QObject, Signal
+from PySide6.QtGui import QAction, QFont
+from PySide6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QTableWidgetItem, QToolBar, 
+    QStatusBar, QTableWidget, QAbstractItemView, QHeaderView, QDialog, QTabWidget,
+    QTreeWidget, QTreeWidgetItem, QPlainTextEdit, QMessageBox
+)
 
 
 try:
@@ -39,10 +25,12 @@ except Exception:
     HTTP_AVAILABLE = False
 
 
+# Triggers packet capture from any Network Interface in GUI
 class Signals(QObject):
     packet_captured = Signal(object)
 
 
+# The sniffer starts sniffing for any available packets
 class SnifferEngine:
     def __init__(self, on_packet, iface=None):
         self.on_packet = on_packet
@@ -53,8 +41,7 @@ class SnifferEngine:
         if self.running:
             return 
         self.running = True
-
-        # sniff runs in the current threat;  we call it via Qt-safe signal    
+  
         import threading
         threading.Thread(target=self._run, daemon=True).start()
 
@@ -73,16 +60,8 @@ class SnifferEngine:
         self.running = False
 
 
+# Function to craft the sniffed packets
 def parse_packet(pkt):
-    """
-    Detect and extract fields for:
-    Ethernet, ARP, IPv4, IPv6, TCP, UDP, ICMP, DNS, HTTP, DHCP
-
-    Returns:
-        ts, src, dst, proto_label, length
-    Where proto_label can be something like:
-        ARP, ICMP, DNS, DHCP, HTTP, HTTPS, TCP, UDP, IPv4, IPv6, OTHER
-    """
     ts = datetime.now().strftime("%H:%M:%S")
     length = len(pkt)
 
@@ -90,17 +69,9 @@ def parse_packet(pkt):
     dst = "-"
     proto = "OTHER"
 
-    # -----------------------
-    # L2: Ethernet (MACs)
-    # -----------------------
     if Ether in pkt:
         eth = pkt[Ether]
-        # (optional) keep MACs for internal use / debugging
-        # eth.src, eth.dst
-
-    # -----------------------
-    # ARP (L2.5)
-    # -----------------------
+        
     if ARP in pkt:
         arp = pkt[ARP]
         src = getattr(arp, "psrc", "-")
@@ -108,9 +79,6 @@ def parse_packet(pkt):
         proto = "ARP"
         return ts, src, dst, proto, length
 
-    # -----------------------
-    # L3: IPv4 / IPv6
-    # -----------------------
     is_ipv4 = IP in pkt
 
     if is_ipv4:
@@ -119,19 +87,12 @@ def parse_packet(pkt):
         proto = "IPv4"
         
     else:
-        # Non-IP, Non-ARP packet (rare but possible)
         return ts, src, dst, proto, length
 
-    # -----------------------
-    # DNS over UDP or TCP (usually UDP 53)
-    # -----------------------
     if DNS in pkt:
         proto = "DNS"
         return ts, src, dst, proto, length
 
-    # -----------------------
-    # ICMP / ICMPv6
-    # -----------------------
     if ICMP in pkt:
         proto = "ICMP"
         return ts, src, dst, proto, length
@@ -140,9 +101,6 @@ def parse_packet(pkt):
         proto = "ICMPv6"
         return ts, src, dst, proto, length
 
-    # -----------------------
-    # L4: TCP / UDP
-    # -----------------------
     sport = None
     dport = None
 
@@ -151,18 +109,13 @@ def parse_packet(pkt):
         dport = pkt[TCP].dport
         proto = "TCP"
 
-        # -----------------------
-        # HTTP detection
-        # -----------------------
-        # If scapy HTTP layer exists: use it.
-        # Otherwise fallback to port 80 heuristic.
         if HTTP_AVAILABLE and (HTTPRequest in pkt or HTTPResponse in pkt):
             proto = "HTTP"
         else:
             if sport == 80 or dport == 80:
                 proto = "HTTP"
             elif sport == 443 or dport == 443:
-                proto = "HTTPS"  # encrypted payload, but still label it
+                proto = "HTTPS"  
 
         return ts, src, dst, proto, length
 
@@ -171,21 +124,17 @@ def parse_packet(pkt):
         dport = pkt[UDP].dport
         proto = "UDP"
 
-        # Heuristic labels (optional):
         if sport == 53 or dport == 53:
             proto = "DNS"
         elif sport in (67, 68) or dport in (67, 68):
-            # DHCP is already handled above via BOOTP/DHCP presence,
-            # but keep label here as fallback.
             proto = "DHCP"
 
         return ts, src, dst, proto, length
-
-    # If it was IP but not TCP/UDP/ICMP
     return ts, src, dst, proto, length
 
 
 
+# GUI for viewing a specific packet details
 class PacketDetailDialog(QDialog):
     def __init__(self, pkt, parent=None):
         super().__init__(parent)
@@ -197,12 +146,10 @@ class PacketDetailDialog(QDialog):
         tabs = QTabWidget()
         layout.addWidget(tabs)
 
-        # --- Layers / Fields view (Tree) ---
         self.layer_tree = QTreeWidget()
         self.layer_tree.setHeaderLabels(["Layer / Field", "Value"])
         tabs.addTab(self.layer_tree, "OSI Layers")
 
-        # --- Hex view ---
         self.hex_view = QPlainTextEdit()
         self.hex_view.setReadOnly(True)
         mono = QFont("Monospace")
@@ -210,14 +157,12 @@ class PacketDetailDialog(QDialog):
         self.hex_view.setFont(mono)
         tabs.addTab(self.hex_view, "Hex")
 
-        # Fill contents
         self._populate_layers(pkt)
         self._populate_hex(pkt)
 
     def _populate_layers(self, pkt):
         self.layer_tree.clear()
 
-        # Scapy layers in order (closest thing to OSI in Scapy)
         for layer_cls in pkt.layers():
             layer = pkt.getlayer(layer_cls)
             if layer is None:
@@ -226,7 +171,6 @@ class PacketDetailDialog(QDialog):
             layer_item = QTreeWidgetItem([layer_cls.__name__, ""])
             self.layer_tree.addTopLevelItem(layer_item)
 
-            # Show fields for this layer
             try:
                 fields = getattr(layer, "fields", {})
                 for k, v in fields.items():
@@ -242,6 +186,7 @@ class PacketDetailDialog(QDialog):
 
 
 
+# Function for hex values of the selected packet
 def format_hexdump(data: bytes, width: int = 16) -> str:
     lines = []
     for offset in range(0, len(data), width):
@@ -253,6 +198,7 @@ def format_hexdump(data: bytes, width: int = 16) -> str:
 
 
 
+# Main GUI for all sniffed packets
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -277,12 +223,11 @@ class MainWindow(QMainWindow):
 
         self.table = QTableWidget(0, 5)
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)  # fill available space
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)  
 
-        # Optional: make some columns tighter and others stretch (more professional)
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # Time
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Protocol
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # Length
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         header.setStretchLastSection(True)
 
         self.table.setHorizontalHeaderLabels(["Time", "Source", "Destination", "Protocol", "Length"])
@@ -342,11 +287,9 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Cleared")
         self._packets.clear()
 
-    # background thread callback
     def on_packet_background(self, pkt):
         self.signals.packet_captured.emit(pkt)
 
-    # GUI thread handler
     def on_packet_ui(self, pkt):
         ts, src, dst, proto, length = parse_packet(pkt)
 
@@ -376,12 +319,14 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
 
+# Function that triggers the GUI
 def main():
     app = QApplication(sys.argv)    
     w = MainWindow()
     w.show()
     sys.exit(app.exec())
 
+# Runs the whole program
 if __name__ == "__main__":
     main()
 
