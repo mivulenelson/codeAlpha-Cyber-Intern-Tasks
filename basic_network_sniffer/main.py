@@ -8,6 +8,8 @@ from datetime import datetime
 
 # Scapy imports
 from scapy.all import sniff
+from scapy.layers.inet6 import IPv6, ICMPv6EchoRequest, ICMPv6EchoReply, ICMPv6ND_NS, ICMPv6ND_NA
+from scapy.layers.dhcp import DHCP
 from scapy.layers.inet import IP, TCP, UDP, ICMP
 from scapy.layers.l2 import Ether, ARP
 from scapy.layers.dns import DNS
@@ -22,6 +24,7 @@ except Exception:
 
 
 # Triggers packet capture from any Network Interface in GUI
+from PySide6.QtCore import QObject, Signal
 class Signals(QObject):
     packet_captured = Signal(object)
 
@@ -65,9 +68,11 @@ def parse_packet(pkt):
     dst = "-"
     proto = "OTHER"
 
+    # ---- L2: Ethernet / ARP ----
     if Ether in pkt:
-        eth = pkt[Ether]
-        
+        # eth = pkt[Ether]  # keep if you later want MACs: eth.src / eth.dst / eth.type
+        pass
+
     if ARP in pkt:
         arp = pkt[ARP]
         src = getattr(arp, "psrc", "-")
@@ -75,62 +80,124 @@ def parse_packet(pkt):
         proto = "ARP"
         return ts, src, dst, proto, length
 
+    # ---- L3: IPv4 / IPv6 ----
     is_ipv4 = IP in pkt
+    is_ipv6 = IPv6 in pkt
 
     if is_ipv4:
         src = pkt[IP].src
         dst = pkt[IP].dst
-        proto = "IPv4"
-        
+        ip_ver = "IPv4"
+    elif is_ipv6:
+        src = pkt[IPv6].src
+        dst = pkt[IPv6].dst
+        ip_ver = "IPv6"
     else:
+        # Non-IP non-ARP traffic (e.g., STP, LLDP, etc.)
+        proto = "L2"
         return ts, src, dst, proto, length
 
+    # ---- L7/L4 classification helpers (ports) ----
+    def classify_by_ports(sport: int | None, dport: int | None) -> str | None:
+        if sport is None or dport is None:
+            return None
+
+        # Common well-known ports (heuristic)
+        PORT_MAP = {
+            53:  "DNS",
+            67:  "DHCP",
+            68:  "DHCP",
+            80:  "HTTP",
+            443: "HTTPS",
+            22:  "SSH",
+            21:  "FTP",
+            20:  "FTP-DATA",
+            25:  "SMTP",
+            587: "SMTP-Submission",
+            465: "SMTPS",
+            110: "POP3",
+            995: "POP3S",
+            143: "IMAP",
+            993: "IMAPS",
+            123: "NTP",
+            161: "SNMP",
+            162: "SNMPTRAP",
+            389: "LDAP",
+            636: "LDAPS",
+            3306:"MySQL",
+            5432:"PostgreSQL",
+            3389:"RDP",
+            5900:"VNC",
+            5060:"SIP",
+            5061:"SIPS",
+            1883:"MQTT",
+            8883:"MQTTS",
+        }
+
+        return PORT_MAP.get(sport) or PORT_MAP.get(dport)
+
+    # ---- L7: DNS (works for both UDP/TCP DNS) ----
     if DNS in pkt:
         proto = "DNS"
         return ts, src, dst, proto, length
 
-    if ICMP in pkt:
+    # ---- L3 control: ICMP / ICMPv6 ----
+    if ICMP in pkt and is_ipv4:
         proto = "ICMP"
         return ts, src, dst, proto, length
 
-    if "ICMPv6EchoRequest" in pkt or "ICMPv6EchoReply" in pkt:
-        proto = "ICMPv6"
-        return ts, src, dst, proto, length
+    if is_ipv6:
+        if (ICMPv6EchoRequest in pkt) or (ICMPv6EchoReply in pkt):
+            proto = "ICMPv6"
+            return ts, src, dst, proto, length
+        if (ICMPv6ND_NS in pkt) or (ICMPv6ND_NA in pkt):
+            proto = "NDP"
+            return ts, src, dst, proto, length
 
-    sport = None
-    dport = None
-
+    # ---- L4: TCP / UDP ----
     if TCP in pkt:
-        sport = pkt[TCP].sport
-        dport = pkt[TCP].dport
+        sport = int(pkt[TCP].sport)
+        dport = int(pkt[TCP].dport)
         proto = "TCP"
 
+        # HTTP detection (scapy http layer if present) + port heuristic
         if HTTP_AVAILABLE and (HTTPRequest in pkt or HTTPResponse in pkt):
             proto = "HTTP"
         else:
-            if sport == 80 or dport == 80:
-                proto = "HTTP"
-            elif sport == 443 or dport == 443:
-                proto = "HTTPS"  
+            by_port = classify_by_ports(sport, dport)
+            if by_port:
+                proto = by_port
+            else:
+                # Optional: label TLS if common
+                if sport == 443 or dport == 443:
+                    proto = "TLS/HTTPS"
 
         return ts, src, dst, proto, length
 
     if UDP in pkt:
-        sport = pkt[UDP].sport
-        dport = pkt[UDP].dport
+        sport = int(pkt[UDP].sport)
+        dport = int(pkt[UDP].dport)
         proto = "UDP"
 
-        if sport == 53 or dport == 53:
-            proto = "DNS"
-        elif sport in (67, 68) or dport in (67, 68):
+        # DHCP (best via layer if present, otherwise ports)
+        if DHCP in pkt or sport in (67, 68) or dport in (67, 68):
             proto = "DHCP"
+            return ts, src, dst, proto, length
+
+        by_port = classify_by_ports(sport, dport)
+        if by_port:
+            proto = by_port
 
         return ts, src, dst, proto, length
+
+    # If it’s IP but not TCP/UDP/ICMP, keep the IP version label
+    proto = ip_ver
     return ts, src, dst, proto, length
 
 
 
 # GUI for viewing a specific packet details
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QTabWidget, QTreeWidget, QTreeWidgetItem, QPlainTextEdit
 class PacketDetailDialog(QDialog):
     def __init__(self, pkt, parent=None):
         super().__init__(parent)
